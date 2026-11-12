@@ -15,7 +15,10 @@ import {
     applyAgeOutputEncryption,
     resolveShareAgeConfig,
 } from '@/restful/age-output';
-import { findShareToken } from '@/restful/token';
+import {
+    consumeShareTokenForRequest,
+    findShareToken,
+} from '@/restful/token';
 import { maskAgeSecretInUrl } from '@/utils/age';
 
 function getMihomoExternalOptions(query) {
@@ -84,7 +87,24 @@ export default function register($app) {
 
 async function downloadSubscription(req, res) {
     const { name } = req.params;
-    const isShareRoute = req.path?.startsWith('/share/');
+    const isShareRoute = String(req.route?.path ?? req.path ?? '')
+        .toLowerCase()
+        .startsWith('/share/');
+    if (
+        isShareRoute &&
+        !req.query?._fakeNode &&
+        !consumeShareTokenForRequest(req, 'sub')
+    ) {
+        failed(
+            res,
+            new RequestInvalidError(
+                'INVALID_SHARE_TOKEN',
+                '分享令牌错误、已过期或已用尽',
+            ),
+            404,
+        );
+        return;
+    }
 
     const {
         useMihomoExternal,
@@ -293,7 +313,7 @@ async function downloadSubscription(req, res) {
                 noFlow,
             };
             if (_fakeNode || _fakeSub) {
-                if(_fakeNode) {
+                if (_fakeNode) {
                     $.info(`返回假节点信息`);
                 }
                 delete opt.name;
@@ -387,8 +407,7 @@ async function downloadSubscription(req, res) {
                         );
                     } catch (e) {
                         $.error(
-                            `订阅 ${name} 使用自定义流量链接 ${
-                                sub.subUserinfo
+                            `订阅 ${name} 使用自定义流量链接 ${sub.subUserinfo
                             } 获取流量信息时发生错误: ${JSON.stringify(e)}`,
                         );
                     }
@@ -491,6 +510,22 @@ async function downloadSubscription(req, res) {
 
 async function downloadCollection(req, res) {
     const { name } = req.params;
+    if (
+        String(req.route?.path ?? req.path ?? '')
+            .toLowerCase()
+            .startsWith('/share/') &&
+        !consumeShareTokenForRequest(req, 'col')
+    ) {
+        failed(
+            res,
+            new RequestInvalidError(
+                'INVALID_SHARE_TOKEN',
+                '分享令牌错误、已过期或已用尽',
+            ),
+            404,
+        );
+        return;
+    }
 
     const {
         useMihomoExternal,
@@ -674,10 +709,8 @@ async function downloadCollection(req, res) {
                             }
                         } catch (err) {
                             $.error(
-                                `组合订阅 ${name} 中的子订阅 ${
-                                    sub.name
-                                } 获取流量信息时发生错误: ${
-                                    err.message ?? err
+                                `组合订阅 ${name} 中的子订阅 ${sub.name
+                                } 获取流量信息时发生错误: ${err.message ?? err
                                 }`,
                             );
                         }
@@ -695,8 +728,7 @@ async function downloadCollection(req, res) {
                                 );
                             } catch (e) {
                                 $.error(
-                                    `组合订阅 ${name} 使用自定义流量链接 ${
-                                        sub.subUserinfo
+                                    `组合订阅 ${name} 使用自定义流量链接 ${sub.subUserinfo
                                     } 获取流量信息时发生错误: ${JSON.stringify(
                                         e,
                                     )}`,
@@ -729,8 +761,7 @@ async function downloadCollection(req, res) {
                         );
                     } catch (e) {
                         $.error(
-                            `组合订阅 ${name} 使用自定义流量链接 ${
-                                collection.subUserinfo
+                            `组合订阅 ${name} 使用自定义流量链接 ${collection.subUserinfo
                             } 获取流量信息时发生错误: ${JSON.stringify(e)}`,
                         );
                     }
